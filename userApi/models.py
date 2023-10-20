@@ -52,7 +52,7 @@ class Language(models.Model):
         (INTERMEDIATE, "Intermediate"),
         (BEGINNER, "Beginner")
     ]
-    proficiency = models.IntegerField(choices=PROFICIENCY_CHOICES, default=NATIVE)
+    proficiency = models.CharField(max_length=20, choices=PROFICIENCY_CHOICES, default=NATIVE)
     
     def __str__(self) -> str:
         return f"{self.language}, {self.user}, {self.proficiency}"
@@ -80,7 +80,7 @@ class Skills(models.Model):
         (PROFICIENT, "Proficient"),
         (EXPERT, "Expert")
     ]
-    skill_level = models.IntegerField(choices=SKILL_LEVEL_CHOICES, default=NOVICE)
+    skill_level = models.CharField(max_length=50, choices=SKILL_LEVEL_CHOICES, default=NOVICE)
 
     def __str__(self) -> str:
         return f"{self.user}, {self.skill_name}, {self.skill_level}"
@@ -99,7 +99,7 @@ class EmploymentType(models.Model):
         (PART_TIME_CONTRACT, "Part-time/Contract"),
         (PART_TIME_PERMANENT, "Part-time/Permanent")
     ]
-    type_name = models.IntegerField(choices=TYPE_CHOICES, default=FULL_TIME_CONTRACT)
+    type_name = models.CharField(max_length=50, choices=TYPE_CHOICES, default=FULL_TIME_CONTRACT)
 
     @property
     def get_type_name(self):
@@ -113,7 +113,7 @@ class EmploymentType(models.Model):
 
 class UserRate(models.Model):
     id = models.UUIDField(default=uuid.uuid4, unique=True, primary_key=True, editable=False)
-    user = models.ForeignKey(User, related_name="rating_owner", null=True, on_delete=models.SET_NULL)
+    user = models.ForeignKey(Profile, related_name="rating_owner", null=True, on_delete=models.SET_NULL)
     rated_user = models.ForeignKey(User, related_name='ratings_received', null=True, on_delete=models.SET_NULL)
     rate_total = models.IntegerField(default=0, null=True, blank=True)
     rate_ratio = models.FloatField(default=0, null=True, blank=True)
@@ -131,14 +131,14 @@ class UserType(models.Model):
         (PERSONAL, "Personal"),
         (COMPANY, "Company")
     ]
-    type_name = models.IntegerField(choices=TYPE_CHOICES, default=PERSONAL)
+    type_name = models.CharField(max_length=20, choices=TYPE_CHOICES, default=PERSONAL)
 
     def __str__(self) -> str:
         return f"{self.user}, {self.type_name}"
     
 class Education(models.Model):
     id = models.UUIDField(default=uuid.uuid4, unique=True, primary_key=True, editable=False)
-    user = models.ForeignKey(User, null=False, blank=False, default="Personal", on_delete=models.CASCADE)
+    user = models.ForeignKey(Profile, null=False, blank=False, default="Personal", on_delete=models.CASCADE)
     major = models.CharField(max_length=50, null=True, blank=True)
 
     DIPLOMA = "diploma"
@@ -149,7 +149,7 @@ class Education(models.Model):
         (BACHELOR, "Bachelor"),
         (POSTGRADUATE, "Postgraduate")
     ]
-    degrees = models.IntegerField(choices=DEGREE_CHOICES, default=DIPLOMA)
+    degrees = models.CharField(max_length=20, choices=DEGREE_CHOICES, default=DIPLOMA)
     school_name = models.CharField(max_length=100, null=True, blank=True)
     start_year = models.DateField()
     end_year = models.DateField()
@@ -159,7 +159,7 @@ class Education(models.Model):
     
 class ExpectedSalary(models.Model):
     id = models.UUIDField(default=uuid.uuid4, primary_key=True, editable=False)
-    user = models.OneToOneField(User, null=False, blank=False, default="Personal", on_delete=models.CASCADE)
+    user = models.OneToOneField(Profile, null=False, blank=False, default="Personal", on_delete=models.CASCADE)
 
     RUPIAH = "rp"
     USDOLLAR = "usd"
@@ -167,7 +167,7 @@ class ExpectedSalary(models.Model):
         (RUPIAH, "RP"),
         (USDOLLAR, "USD")
     ]
-    currency = models.IntegerField(choices=CURRENCY_CHOICES, default=RUPIAH)
+    currency = models.CharField(max_length=3, choices=CURRENCY_CHOICES, default=RUPIAH)
 
     nominal = models.FloatField()
     HOURLY = "hourly"
@@ -178,14 +178,14 @@ class ExpectedSalary(models.Model):
         (MONTHLY, "Honthly"),
         (YEARLY, "Yearly")
     ]
-    paid_period = models.IntegerField(choices=PAID_PERIOD_CHOICES, default=HOURLY)
+    paid_period = models.CharField(max_length=20, choices=PAID_PERIOD_CHOICES, default=HOURLY)
 
     def __str__(self) -> str:
         return str(self.nominal)
     
 class Experience(models.Model):
     id = models.UUIDField(default=uuid.uuid4, primary_key=True, editable=False)
-    user = models.ForeignKey(User, null=False, blank=False, default="Personal", on_delete=models.CASCADE)
+    user = models.ForeignKey(Profile, null=False, blank=False, default="Personal", on_delete=models.CASCADE)
     job_name = models.CharField(max_length=100, null=False, blank=False)
     company_name = models.CharField(max_length=100, null=True, blank=True)
     start_date = models.DateField()
@@ -198,7 +198,7 @@ class Experience(models.Model):
     
 class Networking(models.Model):
     id = models.UUIDField(default=uuid.uuid4, primary_key=True, editable=False)
-    user = models.ForeignKey(User, null=False, blank=False, default="Personal", on_delete=models.CASCADE)
+    user = models.ForeignKey(Profile, null=False, blank=False, default="Personal", on_delete=models.CASCADE)
     networking_link = models.CharField(max_length=100, null=False, blank=False)
     NETWORKING_CHOICES = [
         (1, "LinkedIn"),
@@ -206,7 +206,7 @@ class Networking(models.Model):
         (3, "Instagram"),
         (4, "Twitter")
     ]
-    networking_name = models.IntegerField(choices=NETWORKING_CHOICES, null=False, blank=False, default=1)
+    networking_name = models.CharField(max_length=20, choices=NETWORKING_CHOICES, null=False, blank=False, default=1)
 
     @property
     def get_network_name(self):
@@ -220,15 +220,20 @@ class Networking(models.Model):
     
 class Portfolio(models.Model):
     id = models.UUIDField(default=uuid.uuid4, primary_key=True, editable=False)
-    user = models.ForeignKey(User, null=False, blank=False, default="Personal", on_delete=models.CASCADE)
+    user = models.ForeignKey(Profile, null=False, blank=False, default="Personal", on_delete=models.CASCADE)
     portfolio_link = models.CharField(max_length=100, null=False, blank=False)
+
+    GITHUB = "github"
+    LINKEDIN = "linkedin"
+    PERSONAL_WEBSITE = "personal_website"
+    OTHER_LINK = "other_link"
     PORTFOLIO_CHOICES = [
-        (1, "Github"),
-        (2, "LinkedIn"),
-        (3, "Personal Website"),
-        (4, "Other Link")
+        (GITHUB, "Github"),
+        (LINKEDIN, "LinkedIn"),
+        (PERSONAL_WEBSITE, "Personal Website"),
+        (OTHER_LINK, "Other Link")
     ]
-    portfolio_name = models.IntegerField(choices=PORTFOLIO_CHOICES, null=False, blank=False, default=1)
+    portfolio_name = models.CharField(max_length=20, choices=PORTFOLIO_CHOICES, null=False, blank=False, default=1)
 
     @property
     def get_portfolio_name(self):
@@ -253,7 +258,8 @@ class Message(models.Model):
     created = models.DateTimeField(auto_now_add=True)
 
     def __str__(self) -> str:
-        return self.subject
+        return str(self.sender)
     
     class Meta:
+        unique_together = ["sender", "recipient"]
         ordering = ["is_read", "-created"]

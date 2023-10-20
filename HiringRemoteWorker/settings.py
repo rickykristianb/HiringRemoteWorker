@@ -42,6 +42,7 @@ INSTALLED_APPS = [
     'rest_framework',
 
     'userApi.apps.UserapiConfig',
+    'jobApi.apps.JobapiConfig'
 ]
 
 MIDDLEWARE = [
