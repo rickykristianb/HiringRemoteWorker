@@ -16,7 +16,7 @@ class Profile(models.Model):
     profile_picture = models.ImageField(null=True, upload_to="profile/", default="profile/user-default.png")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-        # skill_id integer
+    skills = models.ManyToManyField("Skills", blank=True)
         # employement_type_id integer
     # user_rate_id integer
     # user_type_id integer
@@ -31,9 +31,10 @@ class Profile(models.Model):
     def __str__(self) -> str:
         return self.username
     
+    
 class Language(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, unique=True, editable=False)
-    user = models.ForeignKey(Profile, on_delete=models.CASCADE, blank=False)
+    user = models.ManyToManyField(Profile, related_name='languages', blank=True)
     LANGUAGE_CHOICES = [
         ("ID", "INDONESIA"),
         ("EN", "ENGLISH"),
@@ -55,15 +56,11 @@ class Language(models.Model):
     proficiency = models.CharField(max_length=20, choices=PROFICIENCY_CHOICES, default=NATIVE)
     
     def __str__(self) -> str:
-        return f"{self.language}, {self.user}, {self.proficiency}"
-    
-    class Meta:
-        unique_together = ["user", "language"]
+        return f"{self.language}, {self.proficiency}"
     
 
 class Skills(models.Model):
     id = models.UUIDField(default=uuid.uuid4, unique=True, primary_key=True, editable=False)
-    user = models.ForeignKey(Profile, on_delete=models.CASCADE, null=True, blank=True)
     skill_name = models.CharField(max_length=20, null=True, blank=True)
 
     NOVICE = "novice"
@@ -83,7 +80,7 @@ class Skills(models.Model):
     skill_level = models.CharField(max_length=50, choices=SKILL_LEVEL_CHOICES, default=NOVICE)
 
     def __str__(self) -> str:
-        return f"{self.user}, {self.skill_name}, {self.skill_level}"
+        return f"{self.skill_name}, {self.skill_level}"
     
     
 class EmploymentType(models.Model):
