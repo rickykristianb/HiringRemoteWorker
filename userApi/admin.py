@@ -3,7 +3,7 @@ from .models import *
 # Register your models here.
 
 admin.site.register([
-    Profile, Language, Skills, EmploymentType, 
-    UserRate, UserType, Education, ExpectedSalary, 
+    Profile, Language, Skills, 
+    UserRate, Education, ExpectedSalary, 
     Experience, Networking, Portfolio,
     Message])
