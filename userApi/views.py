@@ -11,6 +11,7 @@ from .serializers import ProfileSerializer, LanguageSerializer
 def get_user(request):
     users = Profile.objects.all()
     serializer = ProfileSerializer(users, many=True)
+    print(Profile.save_rate_field)
     return Response(serializer.data)
 
 

@@ -1,5 +1,8 @@
 from django.db import models
 from django.contrib.auth.models import User
+from django.db.models.functions import Cast
+from django.db.models import Sum
+from django.db import connection
 import uuid
 
 # Create your models here.
@@ -8,7 +11,7 @@ class Profile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, null=True, blank=True)
     name = models.CharField(max_length=255, null=False, blank=False)
     username = models.CharField(max_length=255, unique=True, null=False, blank=False)
-    email = models.EmailField(max_length=255, unique=True, null=False, blank=False)
+    email = models.EmailField(max_length=255, null=False, blank=False)
     location = models.CharField(max_length=255, null=True, blank=True)
     phone_number = models.CharField(max_length=14, unique=True, null=True, blank=True)
     short_intro = models.CharField(max_length=255, null=True, blank=True)
@@ -17,7 +20,11 @@ class Profile(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     skills = models.ManyToManyField("Skills", blank=True)
-        # employement_type_id integer
+    languages = models.ManyToManyField("Language", blank=True)
+    employment_type = models.ManyToManyField("EmploymentType", blank=True)
+    rating_received = models.ManyToManyField('Profile', through="UserRate", related_name='rated_profiles')
+    rate_total = models.FloatField(default=0, null=True, blank=True)
+    rate_ratio = models.FloatField(default=0, null=True, blank=True)
     # user_rate_id integer
     # user_type_id integer
     # experience_id integer
@@ -31,15 +38,80 @@ class Profile(models.Model):
     def __str__(self) -> str:
         return self.username
     
+    # def save_rate_field(self):
+    #     with connection.cursor() as cursor:
+    #         cursor.execute("SELECT SUM(rate_value) FROM userApi_userrate WHERE to_user_id=%s", [str(self.id).replace("-","")])
+    #         sum_rate_value = cursor.fetchone()
+    #         self.rate_total = sum_rate_value[0]
+    #         self.save()
+
+
+
+
+        # with connection.cursor() as cursor:
+        #     # cursor.execute(
+        #     #     """
+        #     #     SELECT rate_value
+        #     #     FROM userApi_UserRate 
+        #     #     WHERE to_user_id = %s
+        #     #     """, [str(self.id)])
+            
+        #     # result = cursor.fetchall()
+        #     # print("ID", self.id)
+        #     # print("RESULT: ", result)
+        #     # cursor.execute("UPDATE bar SET foo = 1 WHERE baz = %s", [self.baz])
+        #     cursor.execute(
+        #         """
+        #     SELECT SUM(CAST(rate_value AS INTEGER)) AS total_ratings
+        #     FROM userApi_userrate
+        #     WHERE to_user_id = %s
+        #     """, [str(self.id)])
+        #     test = cursor.fetchone()
+
+        #     self.rate_total = test
+        #     self.save()
+
+        #     print(self.id)
+        #     print("result", test)
+        # # total_ratings = UserRate.objects.filter(to_user=self).aggregate(total_ratings=Sum(Cast('rate_value', models.IntegerField())))["total_ratings"]
+        # # print(total_ratings)
+        # self.rate_total = total_ratings
+        # self.save()
+
+
+class UserRate(models.Model):
+    id = models.UUIDField(default=uuid.uuid4, unique=True, primary_key=True, editable=False)
+    from_user = models.ForeignKey(Profile, related_name="given_rating", null=True, on_delete=models.CASCADE)
+    to_user = models.ForeignKey(Profile, on_delete=models.CASCADE, null=True)
+
+    RATE_CHOICES = [
+        (1, 1),
+        (2, 2),
+        (3, 3),
+        (4, 4),
+        (5, 5)
+    ]
+    rate_value = models.IntegerField(choices=RATE_CHOICES, default=5)
+
+    def __str__(self) -> str:
+        return f"{self.from_user}, {self.to_user}" 
+    
+    # def save(self):
+    #     super(UserRate, self).save(self)
+    #     self.to_user.save_rate_field()
+    
+    class Meta:
+        unique_together = ["from_user", "to_user"]
+    
     
 class Language(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, unique=True, editable=False)
-    user = models.ManyToManyField(Profile, related_name='languages', blank=True)
+    # user = models.ForeignKey(Profile, related_name='languages', on_delete=models.CASCADE, blank=True)
     LANGUAGE_CHOICES = [
-        ("ID", "INDONESIA"),
-        ("EN", "ENGLISH"),
+        ("Indonesia", "INDONESIA"),
+        ("English", "ENGLISH"),
     ]
-    language = models.CharField(max_length=2, default="ID", choices=LANGUAGE_CHOICES)
+    language = models.CharField(max_length=20, default="ID", choices=LANGUAGE_CHOICES)
 
     NATIVE = "native"
     EXPERT = "expert"
@@ -85,7 +157,6 @@ class Skills(models.Model):
     
 class EmploymentType(models.Model):
     id = models.UUIDField(default=uuid.uuid4, unique=True, primary_key=True, editable=False)
-    user = models.ForeignKey(Profile, on_delete=models.CASCADE, null=True, blank=False)
     FULL_TIME_CONTRACT = "fulltime_contract"
     FULL_TIME_PERMANENT = "fulltime_permanent"
     PART_TIME_CONTRACT = "parttime_contract"
@@ -103,21 +174,12 @@ class EmploymentType(models.Model):
         return dict(self.TYPE_CHOICES).get(int(self.type_name))
 
     def __str__(self) -> str:
-        return f"{self.user}, {self.get_type_name}, {self.type_name}"
-    
-    class Meta:
-        unique_together = ["user", "type_name"]
+        return f"{self.get_type_name}, {self.type_name}"
 
-class UserRate(models.Model):
-    id = models.UUIDField(default=uuid.uuid4, unique=True, primary_key=True, editable=False)
-    user = models.ForeignKey(Profile, related_name="rating_owner", null=True, on_delete=models.SET_NULL)
-    rated_user = models.ForeignKey(User, related_name='ratings_received', null=True, on_delete=models.SET_NULL)
-    rate_total = models.IntegerField(default=0, null=True, blank=True)
-    rate_ratio = models.FloatField(default=0, null=True, blank=True)
 
-    def __str__(self) -> str:
-        return f"{self.user}, {self.rated_user}, {self.rate_total}" 
-    
+
+
+
 class UserType(models.Model):
     id = models.UUIDField(default=uuid.uuid4, unique=True, primary_key=True, editable=False)
     user = models.OneToOneField(User, null=False, blank=False, default="Personal", on_delete=models.CASCADE)
