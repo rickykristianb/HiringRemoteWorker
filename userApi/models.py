@@ -1,8 +1,6 @@
 from django.db import models
 from django.contrib.auth.models import User
-from django.db.models.functions import Cast
-from django.db.models import Sum
-from django.db import connection
+# from jobApi.models import JobPosted
 import uuid
 
 # Create your models here.
@@ -11,7 +9,7 @@ class Profile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, null=True, blank=True)
     name = models.CharField(max_length=255, null=False, blank=False)
     username = models.CharField(max_length=255, unique=True, null=False, blank=False)
-    email = models.EmailField(max_length=255, unique=True, null=False, blank=False)
+    email = models.EmailField(max_length=255, null=True, blank=True)
     location = models.CharField(max_length=255, null=True, blank=True)
     phone_number = models.CharField(max_length=14, unique=True, null=True, blank=True)
     short_intro = models.CharField(max_length=255, null=True, blank=True)
@@ -34,6 +32,7 @@ class UserRate(models.Model):
     id = models.UUIDField(default=uuid.uuid4, unique=True, primary_key=True, editable=False)
     from_user = models.ForeignKey(Profile, related_name="given_rating", null=True, on_delete=models.CASCADE)
     to_user = models.ForeignKey(Profile, on_delete=models.CASCADE, null=True)
+    comment = models.TextField(max_length=1000, null=False, blank=False, default="N/A")
     rate_value = models.IntegerField(default=5)
 
     def __str__(self) -> str:
@@ -55,10 +54,17 @@ class Language(models.Model):
 class Skills(models.Model):
     id = models.UUIDField(default=uuid.uuid4, unique=True, primary_key=True, editable=False)
     skill_name = models.CharField(max_length=20, null=True, blank=True)
-    skill_level = models.CharField(max_length=50, null=True, blank=True)
+    skill_level = models.ForeignKey("SkillLevel", on_delete=models.CASCADE, null=True, blank=True)
 
     def __str__(self) -> str:
         return f"{self.skill_name}, {self.skill_level}"
+    
+class SkillLevel(models.Model):
+    id = models.UUIDField(default=uuid.uuid4, unique=True, primary_key=True, editable=False)
+    skill_level = models.CharField(max_length=50, null=True, blank=True)
+
+    def __str__(self) -> str:
+        return self.skill_level
     
     
 class Education(models.Model):
@@ -103,7 +109,6 @@ class Networking(models.Model):
     networking_link = models.CharField(max_length=100, null=False, blank=False)
     networking_name = models.CharField(max_length=20, null=True, blank=True)
 
-
     def __str__(self) -> str:
         return f"{self.user}, {self.networking_name}, {self.networking_link}"
     
@@ -116,12 +121,8 @@ class Portfolio(models.Model):
     portfolio_link = models.CharField(max_length=100, null=False, blank=False)
     portfolio_name = models.CharField(max_length=20, null=True, blank=True)
 
-    @property
-    def get_portfolio_name(self):
-        return dict(self.PORTFOLIO_CHOICES).get(self.portfolio_name)
-
     def __str__(self) -> str:
-        return f"{self.user}, {self.get_portfolio_name}"
+        return f"{self.user}, {self.portfolio_name}"
     
     class Meta:
         unique_together = ["user", "portfolio_name"]
