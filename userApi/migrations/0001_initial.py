@@ -39,6 +39,14 @@ class Migration(migrations.Migration):
             ],
         ),
         migrations.CreateModel(
+            name='Skills',
+            fields=[
+                ('id', models.UUIDField(default=uuid.uuid4, editable=False, primary_key=True, serialize=False, unique=True)),
+                ('skill_name', models.CharField(blank=True, max_length=20, null=True)),
+                ('skill_level', models.CharField(choices=[('novice', 'Novice'), ('beginner', 'Beginner'), ('advance_beginner', 'Advanced Beginner'), ('competent', 'Competent'), ('proficient', 'Proficient'), ('expert', 'Expert')], default='novice', max_length=50)),
+            ],
+        ),
+        migrations.CreateModel(
             name='Profile',
             fields=[
                 ('id', models.UUIDField(default=uuid.uuid4, editable=False, primary_key=True, serialize=False, unique=True)),
