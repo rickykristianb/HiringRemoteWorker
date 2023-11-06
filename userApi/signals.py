@@ -13,8 +13,18 @@ def create_user(sender, instance, created, **kwargs):
             user=user,
             username=user.username,
             email=user.email,
-            name=user.first_name
+            name=f"{user.first_name} {user.last_name}"
         )
+        profile.save()
+
+def save_user(sender, instance, created, **kwargs):
+    profile = instance
+    user = profile.user
+    if created == False:
+        user.first_name = profile.name
+        user.username = profile.username
+        user.email = profile.email
+        user.save()
 
 
 def save_user_rating(sender, instance, created, **kwargs):
@@ -40,3 +50,4 @@ def count_total_exp(sender, instance, created, **kwargs):
 post_save.connect(save_user_rating, sender=UserRate)
 post_save.connect(create_user, sender=User)
 post_save.connect(count_total_exp, sender=Experience)
+post_save.connect(save_user, sender=Profile)

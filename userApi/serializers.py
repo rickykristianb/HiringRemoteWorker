@@ -1,7 +1,8 @@
 from rest_framework import serializers
 from .models import Profile, Language, Skills, Experience, Education, Portfolio, ExpectedSalary, Networking, UserRate
 
-class UserRateSerailizer(serializers.ModelSerializer):
+
+class UserRateSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = UserRate
@@ -86,7 +87,7 @@ class ProfileSerializer(serializers.ModelSerializer):
     
     def get_userrate(self, obj):
         userrate = UserRate.objects.filter(to_user=obj)
-        serializer = UserRateSerailizer(userrate, many=True)
+        serializer = UserRateSerializer(userrate, many=True)
         return serializer.data
     
     
