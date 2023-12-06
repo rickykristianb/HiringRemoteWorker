@@ -2,8 +2,13 @@ from django.db.models.signals import post_save, post_delete
 from django.dispatch import receiver
 from django.db import connection
 from .models import UserRate, Profile, Experience
-from django.contrib.auth.models import User
+# from django.contrib.auth.models import User
+
 from django.db.models import F, Func
+from datetime import datetime
+
+from django.conf import settings
+User = settings.AUTH_USER_MODEL
 
 
 def create_user(sender, instance, created, **kwargs):
@@ -11,9 +16,9 @@ def create_user(sender, instance, created, **kwargs):
         user = instance
         profile = Profile.objects.create(
             user=user,
-            username=user.username,
             email=user.email,
-            name=f"{user.first_name} {user.last_name}"
+            name = user.name,
+            username=user.username
         )
         profile.save()
 
@@ -39,15 +44,19 @@ def save_user_rating(sender, instance, created, **kwargs):
         profile.save()
 
 
-def count_total_exp(sender, instance, created, **kwargs):
-        experience = instance
-        if created:
-            month_exp = int(str((experience.start_date - experience.end_date)/360 * 12).split(" ")[0].removeprefix("-"))
-            experience.total_exp = month_exp
-            experience.save()
+# def count_total_exp(sender, instance, created, **kwargs):
+#         experience = instance
+#         if created:
+#             start_date = datetime.strptime(experience.start_date, "%Y-%m-%d").date()
+#             end_date = datetime.strptime(experience.end_date, "%Y-%m-%d").date()
+#             print(end_date, start_date)
+#             exp_days = int((str(end_date-start_date)).split()[0])
+#             month_exp = exp_days / 360 * 12
+#             experience.total_exp = month_exp / 12
+#             experience.save()
 
 
 post_save.connect(save_user_rating, sender=UserRate)
 post_save.connect(create_user, sender=User)
-post_save.connect(count_total_exp, sender=Experience)
+# post_save.connect(count_total_exp, sender=Experience)
 post_save.connect(save_user, sender=Profile)

@@ -1,15 +1,60 @@
 from django.db import models
-from django.contrib.auth.models import User
+# from django.contrib.auth.models import User
+from django.conf import settings
 # from jobApi.models import JobPosted
 import uuid
+from django.contrib.auth.models import AbstractBaseUser, UserManager, PermissionsMixin, BaseUserManager  # Custom user
+
+from django.conf import settings
+User = settings.AUTH_USER_MODEL    # add to the relation of the user
+
+# Setting User Custom Model
+class UserAccountManager(BaseUserManager):
+    def create_user(self, email, name, username, user_type, password=None, **kwargs):
+        if not email:
+            raise ValueError("Users must have an email address")
+        
+        email = self.normalize_email(email)
+        user = self.model(email=email, name=name, username=username, user_type=user_type)
+        user.set_password(password)
+        user.is_active = True
+        user.save()
+
+        return user
+
+    def create_superuser(self, email, name, password=None, **kwargs):
+        user = self.create_user(email=email, name=name, password=password)
+        user.is_superuser = True
+        user.save()
+        
+        return user
+
+# Setting User Custom Model
+class UserAccount(AbstractBaseUser, PermissionsMixin):
+    email = models.EmailField(max_length=255, unique=True, null=False, blank=False)
+    name = models.CharField(max_length=255, null=False, blank=False)
+    username = models.CharField(max_length=255, unique=True, null=True, blank=True)
+    # You can add more fields here
+    is_active = models.BooleanField(default=True)
+    is_staff = models.BooleanField(default=False)
+    is_superuser = models.BooleanField(default=False)
+    user_type = models.CharField(max_length=20, null=True, blank=True)
+
+    objects = UserAccountManager()
+
+    USERNAME_FIELD = "email"
+    REQUIRED_FIELDS = ["name", "username"]  # You can add more field as required fields
+
+    def __str__(self) -> str:
+        return self.email
 
 # Create your models here.
 class Profile(models.Model):
     id = models.UUIDField(default=uuid.uuid4, unique=True, primary_key=True, editable=False)
     user = models.OneToOneField(User, on_delete=models.CASCADE, null=True, blank=True)
     name = models.CharField(max_length=255, null=False, blank=False)
-    username = models.CharField(max_length=255, unique=True, null=False, blank=False)
-    email = models.EmailField(max_length=255, null=True, blank=True)
+    username = models.CharField(max_length=255, unique=True, null=True, blank=False)
+    email = models.EmailField(max_length=255, null=True, blank=True, unique=True)
     location = models.CharField(max_length=255, null=True, blank=True)
     phone_number = models.CharField(max_length=14, unique=True, null=True, blank=True)
     short_intro = models.CharField(max_length=255, null=True, blank=True)
@@ -18,15 +63,37 @@ class Profile(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     skills = models.ManyToManyField("Skills", blank=True)
-    languages = models.ManyToManyField("Language", blank=True)
-    employment_type = models.CharField(max_length=50, null=True, blank=True)
-    user_type = models.CharField(max_length=20, null=True, blank=True)
     rate_total = models.FloatField(default=0, null=True, blank=True)
     rate_ratio = models.FloatField(default=0, null=True, blank=True)
 
     def __str__(self) -> str:
-        return self.username
+        return self.email
     
+    @property
+    def get_profile_picture(self):
+        if self.profile_picture and hasattr(self.profile_picture, 'url'):
+         return f"http://localhost:8000/{self.profile_picture.url}"
+        
+    
+class EmploymentType(models.Model):
+    id = models.UUIDField(default=uuid.uuid4, unique=True, primary_key=True, editable=False)
+    type = models.CharField(max_length=20, null=False, blank=False)
+
+    def __str__(self) -> str:
+        return f"{self.id},{self.type}"
+    
+
+class UserEmploymentType(models.Model):
+    id = models.UUIDField(default=uuid.uuid4, unique=True, primary_key=True, editable=False)
+    user = models.ForeignKey(Profile, on_delete=models.CASCADE, null=False, blank=False)
+    employment_type  = models.ForeignKey(EmploymentType, on_delete=models.CASCADE, null=False, blank=False)
+
+    def __str__(self) -> str:
+        return f"{self.user}, {self.employment_type}"
+    
+    class Meta:
+        unique_together = ["user", "employment_type"]
+
 
 class UserRate(models.Model):
     id = models.UUIDField(default=uuid.uuid4, unique=True, primary_key=True, editable=False)
@@ -44,6 +111,7 @@ class UserRate(models.Model):
     
 class Language(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, unique=True, editable=False)
+    user = models.ForeignKey(Profile, null=True, blank=True, on_delete=models.CASCADE)
     language = models.CharField(max_length=20, null=True, blank=True)
     proficiency = models.CharField(max_length=20, null=True, blank=True)
     
@@ -54,10 +122,9 @@ class Language(models.Model):
 class Skills(models.Model):
     id = models.UUIDField(default=uuid.uuid4, unique=True, primary_key=True, editable=False)
     skill_name = models.CharField(max_length=20, null=True, blank=True)
-    skill_level = models.ForeignKey("SkillLevel", on_delete=models.CASCADE, null=True, blank=True)
 
     def __str__(self) -> str:
-        return f"{self.skill_name}, {self.skill_level}"
+        return f"{self.skill_name}"
     
 class SkillLevel(models.Model):
     id = models.UUIDField(default=uuid.uuid4, unique=True, primary_key=True, editable=False)
@@ -66,25 +133,35 @@ class SkillLevel(models.Model):
     def __str__(self) -> str:
         return self.skill_level
     
+
+class UserSkillLevel(models.Model):
+    id = models.UUIDField(default=uuid.uuid4, unique=True, primary_key=True, editable=False)
+    user = models.ForeignKey(Profile, on_delete=models.CASCADE)
+    skills = models.ForeignKey(Skills, on_delete=models.CASCADE)
+    skill_level = models.ForeignKey(SkillLevel, on_delete=models.CASCADE)
+
+    def __str__(self) -> str:
+        return f"{self.user}, {self.skills}, {self.skill_level}"
+    
+    class Meta:
+        unique_together = ["user", "skills", "skill_level"]
+    
     
 class Education(models.Model):
     id = models.UUIDField(default=uuid.uuid4, unique=True, primary_key=True, editable=False)
     user = models.ForeignKey(Profile, null=False, blank=False, default="Personal", on_delete=models.CASCADE)
     major = models.CharField(max_length=50, null=True, blank=True)
-    degrees = models.CharField(max_length=20, null=True, blank=True)
+    degree = models.CharField(max_length=20, null=True, blank=True)
     school_name = models.CharField(max_length=100, null=True, blank=True)
-    start_year = models.DateField()
-    end_year = models.DateField()
 
     def __str__(self) -> str:
-        return f"{self.user}, {self.major}, {self.degrees}"
+        return f"{self.user}, {self.major}, {self.degree}"
     
 class ExpectedSalary(models.Model):
     id = models.UUIDField(default=uuid.uuid4, primary_key=True, editable=False)
     user = models.OneToOneField(Profile, null=False, blank=False, default="Personal", on_delete=models.CASCADE)
-    currency = models.CharField(max_length=3, null=True, blank=True)
-    nominal = models.FloatField()
-    paid_period = models.CharField(max_length=20, null=True, blank=True)
+    nominal = models.FloatField(null=False, blank=False)
+    paid_period = models.CharField(max_length=20, null=False, blank=False)
 
     def __str__(self) -> str:
         return str(self.nominal)
@@ -135,13 +212,24 @@ class Message(models.Model):
     email = models.EmailField(max_length=200, null=True, blank=True)
     subject = models.CharField(max_length=200, null=True, blank=True)
     body = models.TextField()
+    prev_reply_message = models.TextField(null=True, blank=True)
     is_read = models.BooleanField(default=False, null=True)
+    is_deleted_by_sender = models.BooleanField(default=False, null=True)
+    is_deleted_by_recipient = models.BooleanField(default=False, null=True)
+    status = models.CharField(max_length=20, null=False, default="active")
     date_read = models.DateTimeField(auto_now_add=False, null=True, blank=True)
     created = models.DateTimeField(auto_now_add=True)
 
     def __str__(self) -> str:
-        return str(self.sender)
+        return (f"from: {str(self.sender)}, to: {str(self.recipient)}, subject: {self.subject}, is_read: {self.is_read}, is_deleted by recipient: {self.is_deleted_by_recipient}, is_deleted by sender: {self.is_deleted_by_sender}")
     
     class Meta:
-        unique_together = ["sender", "recipient"]
         ordering = ["is_read", "-created"]
+
+class MessageDeleted(models.Model):
+    id = models.UUIDField(default=uuid.uuid4, primary_key=True, editable=False)
+    message = models.OneToOneField(Message, on_delete=models.SET_NULL, null=True, blank=True)
+    deleted_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self) -> str:
+        return str(self.message)

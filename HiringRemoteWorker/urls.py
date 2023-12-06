@@ -16,8 +16,9 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path, include, re_path
-from django.conf import settings
 from django.conf.urls.static import static
+from django.conf import settings
+# from djoser.urls
 
 # For react side
 from django.views.generic import TemplateView
@@ -26,8 +27,12 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/user/', include('userApi.urls')),
 
-    path('auth/', include('djoser.url.jwt')),
+    # JWT authentication
+    re_path(r'^auth/', include('djoser.urls')),
+    re_path(r'^auth/', include('djoser.urls.jwt')),
+
+    path('ckeditor/', include('ckeditor_uploader.urls')),
 ]
 
-urlpatterns += [re_path(r"^.*", TemplateView.as_view(TemplateView="login.html"))]
-# urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+# urlpatterns += [re_path(r"^.*", TemplateView.as_view(template_name="login.html"))]
+urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
