@@ -118,6 +118,9 @@ class Language(models.Model):
     def __str__(self) -> str:
         return f"{self.language}, {self.proficiency}"
     
+    class Meta:
+        unique_together = ["user", "language"]
+    
 
 class Skills(models.Model):
     id = models.UUIDField(default=uuid.uuid4, unique=True, primary_key=True, editable=False)
@@ -125,6 +128,7 @@ class Skills(models.Model):
 
     def __str__(self) -> str:
         return f"{self.skill_name}"
+
     
 class SkillLevel(models.Model):
     id = models.UUIDField(default=uuid.uuid4, unique=True, primary_key=True, editable=False)
@@ -144,7 +148,7 @@ class UserSkillLevel(models.Model):
         return f"{self.user}, {self.skills}, {self.skill_level}"
     
     class Meta:
-        unique_together = ["user", "skills", "skill_level"]
+        unique_together = ["user", "skills"]
     
     
 class Education(models.Model):

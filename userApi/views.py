@@ -6,6 +6,7 @@ from rest_framework.authentication import TokenAuthentication
 from django.http import HttpResponse
 from .models import Profile, Language, Skills, Experience, Education, SkillLevel, UserSkillLevel
 from .serializers import *
+from .utils import MessagesResultsSetPagination
 from djoser.views import UserViewSet
 from django.shortcuts import get_object_or_404
 from rest_framework import generics
@@ -17,8 +18,7 @@ from django.template.loader import render_to_string
 
 from django.contrib.auth.models import User
 from django.contrib.auth import authenticate, login, logout
-from django.http import JsonResponse
-from django.http import HttpRequest
+from django.core.paginator import Paginator
 
 import json
 from datetime import datetime
@@ -68,7 +68,6 @@ def send_email(request):
                 html_message=message
                 )
         except Exception as err:
-            print(err)
             context = {
                 "error": "Could not send email"
             }
@@ -99,7 +98,7 @@ def get_skills(request):
     
 
 @api_view(["GET"])
-def get_skill_level(requset):
+def get_skill_level(request):
     try:
         skills_level = SkillLevel.objects.all()
         if skills_level:
@@ -139,7 +138,7 @@ def add_skills(request):
             }
             return Response(context, status=status.HTTP_201_CREATED)
         except Exception as e:
-            return Response({"error": e}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response({"error": f"You have already added {skill_instance}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     except Exception as e:
         return Response({"error": e}, status=status.HTTP_404_NOT_FOUND)
     
@@ -306,7 +305,6 @@ def get_languages(request):
 def add_language(request):
     try:
         user = request.user
-        print(user)
         user_profile = get_object_or_404(Profile, user=user)
         try:
             data = request.data
@@ -321,8 +319,7 @@ def add_language(request):
             }
             return Response(response_data, status=status.HTTP_200_OK)
         except Exception as e:
-            print(e)
-            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"error": f"You have already added {data["language"]}"}, status=status.HTTP_400_BAD_REQUEST)
     except Exception as e:
         return Response({"error": str(e)}, status=status.HTTP_404_NOT_FOUND)
     
@@ -393,7 +390,6 @@ def add_experience(request):
             except Exception as e:
                 return Response({"error": e}, status=status.HTTP_400_BAD_REQUEST)
     except Exception as e:
-        print("ERROR",e)
         return Response({"error": "User profile not found"}, status=status.HTTP_404_NOT_FOUND)
 
 
@@ -477,7 +473,6 @@ def add_employment_type(request):
         user = request.user
         user_profile = Profile.objects.get(user=user)
         data = request.data
-        print(data)
         employment_type = EmploymentType(id=data["id"])
         try:
             UserEmploymentType.objects.create(user=user_profile, employment_type=employment_type)
@@ -565,7 +560,6 @@ def add_rate(request):
         user = request.user
         user_profile = Profile.objects.get(user=user)
         data = request.data
-        print(data)
         try:
             expected_salary = ExpectedSalary.objects.create(
                 user=user_profile,
@@ -634,7 +628,6 @@ def send_reply_message(request):
         serializer = ProfileSerializer(user_profile)
         message_body = data["formData"]["message_body"]
         recipient_reply_data = data["reply_data"]
-        print("RECIPIENT", recipient_reply_data)
         try:
             msg_recipient = Profile.objects.get(user__email=(recipient_reply_data["sender"]["email"]).lower())
             Message.objects.create(
@@ -660,8 +653,6 @@ def get_message(request):
         user = request.user
         user_profile = Profile.objects.get(user=user)
         message = Message.objects.filter(recipient=user_profile, is_deleted_by_recipient=False)
-
-        print(message)
         count_is_read = message.filter(is_read=False).count()
         serializer = MessageSerializer(message, many=True)
         
@@ -739,7 +730,6 @@ def get_deleted_messages(request):
         serializer = MessageSerializer(deleted_messages, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
     except Exception as e:
-        print(str(e))
         serializer = MessageSerializer(deleted_messages, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
     
@@ -774,6 +764,109 @@ def delete_sent_message(request, id):
         return Response({"success": "Sent message has been deleted"}, status=status.HTTP_200_OK)
     except Exception as e:
         return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def get_total_inbox_message(request):
+    try:
+        user = request.user
+        user_profile = Profile.objects.get(user=user)
+        total_inbox_message = Message.objects.filter(recipient=user_profile, is_deleted_by_recipient=False).count()
+        return Response({"total": total_inbox_message}, status=status.HTTP_200_OK)
+    except Exception as e:
+        return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def get_inbox_pagination(request):
+    '''GET MESSAGES BASED ON PAGE PAGINATED'''
+    try:
+        user = request.user
+        user_profile = Profile.objects.get(user=user)
+        message = Message.objects.filter(recipient=user_profile, is_deleted_by_recipient=False)
+        total_inbox_message = Message.objects.filter(recipient=user_profile, is_deleted_by_recipient=False).count()
+                
+        # PAGINATOR
+        paginator = MessagesResultsSetPagination()
+        result_page = paginator.paginate_queryset(message, request)
+        serializer = MessageSerializer(result_page, many=True)
+
+        context = {
+            "data": serializer.data,
+            "total_inbox": total_inbox_message
+        }
+
+        return Response(context, status=status.HTTP_200_OK)
+    except Exception as e:
+        return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def count_unread_messages(request):
+    '''FOR INBOX UNREAD MESSAGE NOTIFICATION'''
+    user = request.user
+    user_profile = Profile.objects.get(user=user)
+    message = Message.objects.filter(recipient=user_profile, is_read=False, is_deleted_by_recipient=False).count()
+    return Response(message)
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def get_sent_message_pagination(request):
+    '''GET SENT MESSAGES BASED ON PAGE PAGINATED'''
+    try:
+        user = request.user
+        user_profile = Profile.objects.get(user=user)
+        message = Message.objects.filter(sender=user_profile, is_deleted_by_sender=False)
+        total_sent_message = Message.objects.filter(sender=user_profile, is_deleted_by_sender=False).count()
+        # PAGINATOR
+        paginator = MessagesResultsSetPagination()
+        result_page = paginator.paginate_queryset(message, request)
+        serializer = MessageSerializer(result_page, many=True)
+
+        context ={
+            "data": serializer.data,
+            "total_sent_message": total_sent_message
+        }
+
+        return Response(context, status=status.HTTP_200_OK)
+    except Exception as e:
+        return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def get_deleted_message_pagination(request):
+    '''GET DELETED MESSAGES BASED ON PAGE PAGINATED'''
+    try:
+        user = request.user
+        user_profile = Profile.objects.get(user=user)
+        deleted_messages = Message.objects.filter(
+                Q(recipient=user_profile, is_deleted_by_recipient=True) |
+                Q(sender = user_profile, is_deleted_by_sender = True,)
+        ).exclude(
+            Q(messagedeleted__deleted_at__isnull=False)
+        )
+
+        total_deleted_message = deleted_messages.count()
+
+        # PAGINATOR
+        paginator = MessagesResultsSetPagination()
+        result_page = paginator.paginate_queryset(deleted_messages, request)
+        serializer = MessageSerializer(result_page, many=True)
+
+        context_page = {
+            "data": serializer.data,
+            "total_deleted_message": total_deleted_message
+        }
+
+        return Response(context_page, status=status.HTTP_200_OK)
+    except Exception as e:
+        serializer = MessageSerializer(deleted_messages, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
     
 
 

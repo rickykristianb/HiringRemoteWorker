@@ -1,5 +1,6 @@
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework_simplejwt.views import TokenObtainPairView
+from rest_framework.pagination import PageNumberPagination
 # Create your views here.
 
 # customize token
@@ -16,3 +17,14 @@ class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
 
 class MyTokenObtainPairView(TokenObtainPairView):
     serializer_class = MyTokenObtainPairSerializer
+
+
+class MessagesResultsSetPagination(PageNumberPagination):
+    page_size = 5
+    page_size_query_param = 'page_size'
+    max_page_size = 1000
+
+class UserListResultsSetPagination(PageNumberPagination):
+    page_size = 20
+    page_query_param = "page_size"
+    max_page_size = 1000
