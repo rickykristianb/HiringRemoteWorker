@@ -25,6 +25,6 @@ class MessagesResultsSetPagination(PageNumberPagination):
     max_page_size = 1000
 
 class UserListResultsSetPagination(PageNumberPagination):
-    page_size = 20
-    page_query_param = "page_size"
+    page_size = 4
+    page_size_query_param = "page_size"
     max_page_size = 1000

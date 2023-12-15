@@ -14,9 +14,10 @@ urlpatterns = [
     # USER
     path('get_user/', views.get_user, name='get_user'),
     # PROFILE
-    path('profile/', views.get_login_user_profile, name='get_login_user_profile'),
+    path('profile/<str:id>', views.get_user_profile, name='get_user_profile'),
+    path('get_all_candidate_profile/', views.get_all_candidate_profile, name='get_all_candidate_profile'),
     path('profile_image_name/', views.get_profile_image_name, name='get_profile_image_name'),
-    path('<str:id>/profile/', views.get_profile, name='get_profile'),
+    # path('profile/<str:id>/', views.get_profile, name='get_profile'),
     path('save_profile/', views.save_profile, name='save_profile'),
     path('save_user_image/', views.save_user_image, name='save_user_image'),
     # SKILLS
@@ -27,7 +28,7 @@ urlpatterns = [
     path('delete_skills/<str:id>/', views.remove_skill, name='remove_skill'),
     # EXPERIENCE
     path('add_experience/', views.add_experience, name='add_experience'),
-    path('get_experience/', views.get_experience, name='get_experience'),
+    # path('get_experience/', views.get_experience, name='get_experience'),
     path('save_experience/<str:id>', views.save_experience, name='save_experience'),
     path('delete_experience/<str:id>', views.delete_experience, name='delete_experience'),
     # EDUCATION
@@ -66,7 +67,10 @@ urlpatterns = [
     path('count_unread_messages/', views.count_unread_messages, name='count_unread_messages'),
     path('get_sent_message_pagination/', views.get_sent_message_pagination, name='get_sent_message_pagination'),
     path('get_deleted_message_pagination/', views.get_deleted_message_pagination, name='get_deleted_message_pagination'),
-    
+    # LOCATION
+    path('get_location/', views.get_location, name='get_location'),
+    path('save_location/', views.save_location, name='save_location'),
+
     # Custom url for creating user, not using regular api url /auth/users to create new
     path('auth/create_user/', CustomUserViewSet.as_view({"post": "create", "get": "list"}), name="user-register")
 ]

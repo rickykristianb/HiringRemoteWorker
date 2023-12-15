@@ -1,4 +1,4 @@
-from django.db.models.signals import post_save, post_delete
+from django.db.models.signals import post_save, post_delete, pre_save
 from django.dispatch import receiver
 from django.db import connection
 from .models import UserRate, Profile, Experience
@@ -43,20 +43,34 @@ def save_user_rating(sender, instance, created, **kwargs):
         profile.rate_ratio = profile.rate_total / total_user_rate
         profile.save()
 
+def count_total_exp_edit(sender, instance, **kwargs):
+    experience = instance
 
-# def count_total_exp(sender, instance, created, **kwargs):
-#         experience = instance
-#         if created:
-#             start_date = datetime.strptime(experience.start_date, "%Y-%m-%d").date()
-#             end_date = datetime.strptime(experience.end_date, "%Y-%m-%d").date()
-#             print(end_date, start_date)
-#             exp_days = int((str(end_date-start_date)).split()[0])
-#             month_exp = exp_days / 360 * 12
-#             experience.total_exp = month_exp / 12
-#             experience.save()
+    start_date = datetime.strptime(experience.start_date, "%Y-%m-%d").date()
+    if (experience.end_date == "9999-12-31"):
+        end_date = datetime.strptime(str(datetime.now()).split(" ")[0], "%Y-%m-%d").date()
+    else:
+        end_date = datetime.strptime(experience.end_date, "%Y-%m-%d").date()
+    exp_days = int((str(end_date-start_date)).split()[0])
+    print("apa nih",exp_days)
+    experience.total_exp = exp_days
+
+def count_total_exp_created(sender, instance, created, **kwargs):
+    experience = instance
+    if created:
+        start_date = datetime.strptime(experience.start_date, "%Y-%m-%d").date()
+        if (experience.end_date == "9999-12-31"):
+            end_date = datetime.strptime(str(datetime.now()).split(" ")[0], "%Y-%m-%d").date()
+        else:
+            end_date = datetime.strptime(experience.end_date, "%Y-%m-%d").date()
+        exp_days = int((str(end_date-start_date)).split()[0])
+        print("apa nih",exp_days)
+        experience.total_exp = exp_days
+        experience.save()
 
 
 post_save.connect(save_user_rating, sender=UserRate)
 post_save.connect(create_user, sender=User)
-# post_save.connect(count_total_exp, sender=Experience)
+post_save.connect(count_total_exp_created, sender=Experience)
+pre_save.connect(count_total_exp_edit, sender=Experience)
 post_save.connect(save_user, sender=Profile)

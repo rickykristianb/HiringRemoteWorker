@@ -55,26 +55,40 @@ class Profile(models.Model):
     name = models.CharField(max_length=255, null=False, blank=False)
     username = models.CharField(max_length=255, unique=True, null=True, blank=False)
     email = models.EmailField(max_length=255, null=True, blank=True, unique=True)
-    location = models.CharField(max_length=255, null=True, blank=True)
     phone_number = models.CharField(max_length=14, unique=True, null=True, blank=True)
     short_intro = models.CharField(max_length=255, null=True, blank=True)
     bio = models.TextField(max_length=1000, null=True, blank=True)
     profile_picture = models.ImageField(null=True, upload_to="profile/", default="profile/user-default.png")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    skills = models.ManyToManyField("Skills", blank=True)
     rate_total = models.FloatField(default=0, null=True, blank=True)
     rate_ratio = models.FloatField(default=0, null=True, blank=True)
 
     def __str__(self) -> str:
-        return self.email
+        return f"{self.email}, ID: {self.id}"
     
     @property
     def get_profile_picture(self):
         if self.profile_picture and hasattr(self.profile_picture, 'url'):
          return f"http://localhost:8000/{self.profile_picture.url}"
-        
+
+class Location(models.Model):
+    id = models.UUIDField(default=uuid.uuid4, unique=True, primary_key=True, editable=False)
+    location = models.CharField(max_length=255, null=True, blank=True)
+
+    def __str__(self) -> str:
+        return f"{self.location}, id: {self.id}"
+
+
+class UserLocation(models.Model):
+    id = models.UUIDField(default=uuid.uuid4, unique=True, primary_key=True, editable=False)
+    user = models.OneToOneField(Profile, on_delete=models.CASCADE, null=True, blank=True)
+    location = models.ForeignKey(Location, on_delete=models.CASCADE, null=True, blank=True)
+
+    def __str__(self) -> str:
+        return f"{self.user}, {self.location}"
     
+
 class EmploymentType(models.Model):
     id = models.UUIDField(default=uuid.uuid4, unique=True, primary_key=True, editable=False)
     type = models.CharField(max_length=20, null=False, blank=False)
@@ -161,6 +175,7 @@ class Education(models.Model):
     def __str__(self) -> str:
         return f"{self.user}, {self.major}, {self.degree}"
     
+
 class ExpectedSalary(models.Model):
     id = models.UUIDField(default=uuid.uuid4, primary_key=True, editable=False)
     user = models.OneToOneField(Profile, null=False, blank=False, default="Personal", on_delete=models.CASCADE)
@@ -170,6 +185,7 @@ class ExpectedSalary(models.Model):
     def __str__(self) -> str:
         return str(self.nominal)
     
+
 class Experience(models.Model):
     id = models.UUIDField(default=uuid.uuid4, primary_key=True, editable=False)
     user = models.ForeignKey(Profile, null=False, blank=False, on_delete=models.CASCADE)

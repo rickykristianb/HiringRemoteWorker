@@ -98,6 +98,19 @@ class UserEmploymentTypeSerializer(serializers.ModelSerializer):
     
     employment_type = EmploymentTypeSerializer()
 
+class LocationSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = Location
+        fields = "__all__"
+
+class UserLocationSerializer(serializers.ModelSerializer):
+    
+    class Meta:
+            model = UserLocation
+            fields = "__all__"
+
+    location = LocationSerializer()
 
 class ProfileSerializer(serializers.ModelSerializer):
 
@@ -105,7 +118,7 @@ class ProfileSerializer(serializers.ModelSerializer):
         model = Profile
         fields = "__all__"
 
-    skills = SkillsSerializer(many=True)
+    skills = serializers.SerializerMethodField()
     languages = serializers.SerializerMethodField()
     experiences = serializers.SerializerMethodField()
     educations = serializers.SerializerMethodField()
@@ -114,11 +127,29 @@ class ProfileSerializer(serializers.ModelSerializer):
     networkings = serializers.SerializerMethodField()
     userrate = serializers.SerializerMethodField()
     useremploymenttype = serializers.SerializerMethodField()
+    userlocation = UserLocationSerializer()
+
+
+    def get_skills(self, obj):
+        level = ["expert", "advanced", "intermediate", "beginner"]
+        skills = UserSkillLevel.objects.filter(user=obj)
+        serializer = UserSkillLevelSerializer(skills, many=True)
+
+        data_index = lambda x: level.index(x["skill_level"]["skill_level"].lower())
+        sorted_data = sorted(serializer.data, key=data_index)
+        return sorted_data
 
     def get_experiences(self, obj):
-        experiences = obj.experience_set.all()
+        experiences = obj.experience_set.all().order_by("-end_date")
+        total_exp = 0
+        for exp in experiences:
+            total_exp += exp.total_exp
         serializer = ExperienceSerializer(experiences, many=True)
-        return serializer.data
+        context = {
+            "data": serializer.data,
+            "total_exp": "{:.2f}".format(total_exp)
+        }
+        return context
     
     def get_educations(self, obj):
         educations = obj.education_set.all()

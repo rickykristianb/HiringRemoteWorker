@@ -6,7 +6,7 @@ from rest_framework.authentication import TokenAuthentication
 from django.http import HttpResponse
 from .models import Profile, Language, Skills, Experience, Education, SkillLevel, UserSkillLevel
 from .serializers import *
-from .utils import MessagesResultsSetPagination
+from .utils import MessagesResultsSetPagination, UserListResultsSetPagination
 from djoser.views import UserViewSet
 from django.shortcuts import get_object_or_404
 from rest_framework import generics
@@ -19,6 +19,8 @@ from django.template.loader import render_to_string
 from django.contrib.auth.models import User
 from django.contrib.auth import authenticate, login, logout
 from django.core.paginator import Paginator
+
+from CaptureData.external_api import LocationSearch
 
 import json
 from datetime import datetime
@@ -169,12 +171,14 @@ def get_user_skill_and_level(request):
 
 
 @api_view(["GET"])
-@permission_classes([IsAuthenticated])
-def get_login_user_profile(request):
-    user = request.user
-    user_profile = get_object_or_404(Profile, email=user)
-    serializer = ProfileSerializer(user_profile, many=False, context={'request': request})
-    return Response(serializer.data, status=status.HTTP_200_OK)
+def get_user_profile(request, id):
+    try:
+        print("ID", id)
+        user = Profile.objects.get(id=id)
+        serializer = ProfileSerializer(user, many=False, context={'request': request})
+        return Response(serializer.data, status=status.HTTP_200_OK)
+    except Exception as e:
+        print(str(e))
 
 
 @api_view(["GET"])
@@ -184,6 +188,7 @@ def get_profile_image_name(request):
     user_profile = get_object_or_404(Profile, email=user)
     serializer = ProfileSerializer(user_profile, many=False, context={'request': request})
     context = {
+        "user_id": serializer.data["id"],
         "profile_picture": serializer.data["profile_picture"],
         "username": serializer.data["username"]
     }
@@ -198,6 +203,37 @@ def get_profile(request, id):
         serializer = ProfileSerializer(user_profile, many=False)
         return Response(serializer.data, status=status.HTTP_200_OK)
     except Exception as e:
+        return Response({"error": str(e)}, status=status.HTTP_404_NOT_FOUND)
+    
+
+@api_view(["GET"])
+def get_all_candidate_profile(request):
+    try:
+        user = UserAccount.objects.filter(user_type="personal")
+        # user_profile = Profile.objects.filter(user__in=user)
+        # print(ProfileSerializer(user_profile, many=True).data)
+        user_profile = Profile.objects.filter(
+            Q(user__in=user, 
+              userskilllevel__isnull=False, 
+              userlocation__isnull=False, 
+              expectedsalary__isnull=False, 
+              useremploymenttype__isnull=False, 
+              short_intro__isnull=False)
+            ).distinct()
+        
+        total_user_list= user_profile.count()
+        # data = [x for x in serializer.data if (x["skills"] != [] and x["userlocation"] is not None and x["expectedsalary"] is not None and x["useremploymenttype"] != [] and x["short_intro"] is not None) ]
+        paginator = UserListResultsSetPagination()
+        result_page = paginator.paginate_queryset(user_profile, request)
+        serializer = ProfileSerializer(result_page, many=True)
+        context = {
+            "data": serializer.data,
+            "total_user": total_user_list
+        }
+        return Response(context, status=status.HTTP_200_OK)
+    except Exception as e:
+        # print("..............................")
+        # print(str(e))
         return Response({"error": str(e)}, status=status.HTTP_404_NOT_FOUND)
     
 
@@ -393,7 +429,7 @@ def add_experience(request):
         return Response({"error": "User profile not found"}, status=status.HTTP_404_NOT_FOUND)
 
 
-@api_view(["PATCH"])
+@api_view(["UPDATE", "PATCH"])
 @permission_classes([IsAuthenticated])
 def save_experience(request, id):
     data = request.data
@@ -404,26 +440,25 @@ def save_experience(request, id):
         experience.start_date = data["jobStartDate"]
         experience.end_date = data["jobEndDate"]
         experience.details = data["jobDescription"]
-        try:
-            experience.save()
-            return Response({"success": "Experience saved"}, status=status.HTTP_200_OK)
-        except Exception as e:
-            return Response({"error": e}, status=status.HTTP_400_BAD_REQUEST)
+        experience.save()
+        return Response({"success": "Experience saved"}, status=status.HTTP_200_OK)
     except Exception as e:
-        return Response({"error": e}, status=status.HTTP_404_NOT_FOUND)
+        return Response({"error": str(e)}, status=status.HTTP_404_NOT_FOUND)
 
 
-@api_view(["GET"])
-@permission_classes([IsAuthenticated])
-def get_experience(request):
-    try:
-        user = request.user
-        user_profile = Profile.objects.get(user=user)
-        experience = Experience.objects.filter(user=user_profile).order_by("-end_date")
-        serializer = ExperienceSerializer(experience, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
-    except Exception as e:
-        return Response({"error": "User not found"}, status=status.HTTP_404_NOT_FOUND)
+# @api_view(["GET"])
+# @permission_classes([IsAuthenticated])
+# def get_experience(request):
+#     print("MASKKK")
+#     try:
+#         user = request.user
+#         user_profile = Profile.objects.get(user=user)
+#         experience = Experience.objects.filter(user=user_profile).order_by("-end_date")
+#         print(experience)
+#         serializer = ExperienceSerializer(experience, many=True)
+#         return Response(serializer.data, status=status.HTTP_200_OK)
+#     except Exception as e:
+#         return Response({"error": "User not found"}, status=status.HTTP_404_NOT_FOUND)
     
 
 @api_view(["DELETE"])
@@ -723,7 +758,7 @@ def get_deleted_messages(request):
         user_profile = Profile.objects.get(user=user)
         deleted_messages = Message.objects.filter(
                 Q(recipient=user_profile, is_deleted_by_recipient=True) |
-                Q(sender = user_profile, is_deleted_by_sender = True,)
+                Q(sender = user_profile, is_deleted_by_sender = True)
         ).exclude(
             Q(messagedeleted__deleted_at__isnull=False)
         )
@@ -869,8 +904,32 @@ def get_deleted_message_pagination(request):
         return Response(serializer.data, status=status.HTTP_200_OK)
     
 
+@api_view(["GET"])
+def get_location(request):
+    location = Location.objects.all()
+    serializer = LocationSerializer(location, many=True)
+    return Response(serializer.data)
 
-    
+
+@api_view(["PATCH"])
+@permission_classes([IsAuthenticated])
+def save_location(request):
+    try:
+        user = request.user
+        data = request.data
+        user_profile = Profile.objects.get(user=user)
+        location = get_object_or_404(Location, id=data)
+        save_location = UserLocation.objects.get_or_create(user=user_profile)
+        save_location[0].location = location
+        try:
+            save_location[0].save()
+            return Response({"success": "Location saved"}, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response({"error": f"Failed to save location, {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    except Exception as e:
+        return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 
 
     
