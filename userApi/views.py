@@ -6,7 +6,7 @@ from rest_framework.authentication import TokenAuthentication
 from django.http import HttpResponse
 from .models import Profile, Language, Skills, Experience, Education, SkillLevel, UserSkillLevel
 from .serializers import *
-from .utils import MessagesResultsSetPagination, UserListResultsSetPagination
+from .utils import UserListResultsSetPagination
 from djoser.views import UserViewSet
 from django.shortcuts import get_object_or_404
 from rest_framework import generics
@@ -19,11 +19,16 @@ from django.template.loader import render_to_string
 from django.contrib.auth.models import User
 from django.contrib.auth import authenticate, login, logout
 from django.core.paginator import Paginator
-
+from django.db import connection
 from CaptureData.external_api import LocationSearch
+from functools import reduce
+import operator
 
 import json
 from datetime import datetime
+
+# CONSTANT VARIABLE
+DAYS_IN_YEAR = 365.25
 
 class CustomUserViewSet(UserViewSet):
     '''CREATE CUSTOM USER'''
@@ -42,43 +47,6 @@ def get_user(request):
     serializer = ProfileSerializer(users, many=True)
     return Response(serializer.data)
 
-
-@api_view(["POST"])
-def send_email(request):
-    if request.method == "POST":
-        subject="Email From Portfolio Website",
-        from_email = request.data["email"]
-        to_email = "contact@rickykristianbutarbutar.com"
-        name = request.data["name"]
-        message_body = request.data["messageBody"].split("\n")
-
-        context = {
-                    "name": name,
-                    "from_email": from_email,
-                    "message": message_body
-                }
-        
-        message=render_to_string("send_mail.html", context)
-
-        try:
-            send_mail(
-                subject[0],
-                message,
-                from_email,
-                [to_email],
-                fail_silently=False, 
-                html_message=message
-                )
-        except Exception as err:
-            context = {
-                "error": "Could not send email"
-            }
-            return Response(context, status=status.HTTP_400_BAD_REQUEST)
-        else:
-            context = {
-                "success": "Your message has been sent to \n contact@rickykristianbutarbutar.com"
-            }
-            return Response(context, status=status.HTTP_200_OK)
 
 @api_view(["GET"])
 def get_skills(request):
@@ -626,284 +594,6 @@ def save_rate(request):
         return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
 
-# MESSAGES
-@api_view(["POST"])
-@permission_classes([IsAuthenticated])
-def send_message(request):
-    try:
-        user = request.user
-        data = request.data
-        user_profile = Profile.objects.get(user=user)
-        serializer = ProfileSerializer(user_profile)
-        try:
-            recipient = Profile.objects.get(user__email=(data.get("to_user")).lower())
-
-            Message.objects.create(
-                sender=user_profile, 
-                recipient=recipient,
-                name=serializer.data["name"],
-                email=serializer.data["email"],
-                subject=data.get("subject"),
-                body=data.get("message_body"),
-                created=datetime.now())
-            return Response({"success": "Message send"}, status=status.HTTP_201_CREATED)
-        except Exception as e:
-            return Response({"error": f"Recipient {data.get("to_user").lower()} not found"}, status=status.HTTP_404_NOT_FOUND)
-    except Exception as e:
-        return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-    
-
-@api_view(["POST"])
-@permission_classes([IsAuthenticated])
-def send_reply_message(request):
-    try:
-        user = request.user
-        data = request.data
-        user_profile = Profile.objects.get(user=user)
-        serializer = ProfileSerializer(user_profile)
-        message_body = data["formData"]["message_body"]
-        recipient_reply_data = data["reply_data"]
-        try:
-            msg_recipient = Profile.objects.get(user__email=(recipient_reply_data["sender"]["email"]).lower())
-            Message.objects.create(
-                sender=user_profile, 
-                recipient=msg_recipient,
-                name=msg_recipient.name,
-                email=msg_recipient.email,
-                subject=recipient_reply_data["subject"],
-                body=message_body,
-                prev_reply_message=recipient_reply_data["body"],
-                created=datetime.now())
-            return Response({"success": "Message sent"}, status=status.HTTP_201_CREATED)
-        except Exception as e:
-            return Response({"error": f"Recipient {data.get("to_user").lower()} not found"}, status=status.HTTP_404_NOT_FOUND)
-    except Exception as e:
-        return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-
-@api_view(["GET"])
-@permission_classes([IsAuthenticated])
-def get_message(request):
-    try:
-        user = request.user
-        user_profile = Profile.objects.get(user=user)
-        message = Message.objects.filter(recipient=user_profile, is_deleted_by_recipient=False)
-        count_is_read = message.filter(is_read=False).count()
-        serializer = MessageSerializer(message, many=True)
-        
-        context = {
-            "data": serializer.data,
-            "is_read_count": count_is_read
-        }
-        return Response(context, status=status.HTTP_200_OK)
-    except Exception as e:
-        return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-    
-
-@api_view(["PATCH"])
-@permission_classes([IsAuthenticated])
-def on_read_message(request, id):
-    try:
-        user = request.user
-        user_profile = Profile.objects.get(user=user)
-        message = Message.objects.get(recipient=user_profile, id=id)
-        message.is_read = True
-        message.date_read = datetime.now()
-        message.save()
-        return Response({"success": "read"},status=status.HTTP_202_ACCEPTED)
-    except Exception as e:
-        return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-    
-
-@api_view(["DELETE"])
-@permission_classes([IsAuthenticated])
-def delete_message(request, id):
-    try:
-        user = request.user
-        try:
-            user_profile = Profile.objects.get(user=user)
-            message = Message.objects.get(recipient=user_profile, id=id)
-            message.is_deleted_by_recipient = True
-            message.save()
-            return Response({"success": "Message deleted"}, status=status.HTTP_202_ACCEPTED)
-        except Exception as e:
-            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-    except Exception as e:
-        return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-
-@api_view(["POST"])
-@permission_classes([IsAuthenticated])
-def delete_message_forever(request, id):
-    try:
-        user = request.user
-        user_profile = Profile.objects.get(user=user)
-        try:
-            delete_message_forever = Message.objects.get(recipient=user_profile, id=id)
-            MessageDeleted.objects.create(message=delete_message_forever)
-        except Exception as e:
-            delete_message_forever = Message.objects.get(sender=user_profile, id=id)
-            MessageDeleted.objects.create(message=delete_message_forever)
-        finally:
-            return Response({"success": "Message deleted forever."}, status=status.HTTP_200_OK)
-    except Exception as e:
-        return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-
-@api_view(["GET"])
-@permission_classes([IsAuthenticated])
-def get_deleted_messages(request):
-    try:
-        user = request.user
-        user_profile = Profile.objects.get(user=user)
-        deleted_messages = Message.objects.filter(
-                Q(recipient=user_profile, is_deleted_by_recipient=True) |
-                Q(sender = user_profile, is_deleted_by_sender = True)
-        ).exclude(
-            Q(messagedeleted__deleted_at__isnull=False)
-        )
-        serializer = MessageSerializer(deleted_messages, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
-    except Exception as e:
-        serializer = MessageSerializer(deleted_messages, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
-    
-
-@api_view(["GET"])
-@permission_classes([IsAuthenticated])
-def get_sent_messages(request):
-    try:
-        user = request.user
-        user_profile = Profile.objects.get(user=user)
-        message = Message.objects.filter(sender=user_profile, is_deleted_by_sender=False)
-        count_is_read = message.filter(is_read=False).count()
-        serializer = MessageSerializer(message, many=True)
-        context = {
-            "data": serializer.data,
-            "is_read_count": count_is_read
-        }
-        return Response(context, status=status.HTTP_200_OK)
-    except Exception as e:
-        return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-    
-
-@api_view(["PATCH"])
-@permission_classes([IsAuthenticated])
-def delete_sent_message(request, id):
-    try:
-        user = request.user
-        user_profile = Profile.objects.get(user=user)
-        message = Message.objects.get(sender=user_profile, id=id)
-        message.is_deleted_by_sender = True
-        message.save()
-        return Response({"success": "Sent message has been deleted"}, status=status.HTTP_200_OK)
-    except Exception as e:
-        return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-    
-
-@api_view(["GET"])
-@permission_classes([IsAuthenticated])
-def get_total_inbox_message(request):
-    try:
-        user = request.user
-        user_profile = Profile.objects.get(user=user)
-        total_inbox_message = Message.objects.filter(recipient=user_profile, is_deleted_by_recipient=False).count()
-        return Response({"total": total_inbox_message}, status=status.HTTP_200_OK)
-    except Exception as e:
-        return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-
-@api_view(["GET"])
-@permission_classes([IsAuthenticated])
-def get_inbox_pagination(request):
-    '''GET MESSAGES BASED ON PAGE PAGINATED'''
-    try:
-        user = request.user
-        user_profile = Profile.objects.get(user=user)
-        message = Message.objects.filter(recipient=user_profile, is_deleted_by_recipient=False)
-        total_inbox_message = Message.objects.filter(recipient=user_profile, is_deleted_by_recipient=False).count()
-                
-        # PAGINATOR
-        paginator = MessagesResultsSetPagination()
-        result_page = paginator.paginate_queryset(message, request)
-        serializer = MessageSerializer(result_page, many=True)
-
-        context = {
-            "data": serializer.data,
-            "total_inbox": total_inbox_message
-        }
-
-        return Response(context, status=status.HTTP_200_OK)
-    except Exception as e:
-        return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-    
-
-@api_view(["GET"])
-@permission_classes([IsAuthenticated])
-def count_unread_messages(request):
-    '''FOR INBOX UNREAD MESSAGE NOTIFICATION'''
-    user = request.user
-    user_profile = Profile.objects.get(user=user)
-    message = Message.objects.filter(recipient=user_profile, is_read=False, is_deleted_by_recipient=False).count()
-    return Response(message)
-
-
-@api_view(["GET"])
-@permission_classes([IsAuthenticated])
-def get_sent_message_pagination(request):
-    '''GET SENT MESSAGES BASED ON PAGE PAGINATED'''
-    try:
-        user = request.user
-        user_profile = Profile.objects.get(user=user)
-        message = Message.objects.filter(sender=user_profile, is_deleted_by_sender=False)
-        total_sent_message = Message.objects.filter(sender=user_profile, is_deleted_by_sender=False).count()
-        # PAGINATOR
-        paginator = MessagesResultsSetPagination()
-        result_page = paginator.paginate_queryset(message, request)
-        serializer = MessageSerializer(result_page, many=True)
-
-        context ={
-            "data": serializer.data,
-            "total_sent_message": total_sent_message
-        }
-
-        return Response(context, status=status.HTTP_200_OK)
-    except Exception as e:
-        return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-    
-
-@api_view(["GET"])
-@permission_classes([IsAuthenticated])
-def get_deleted_message_pagination(request):
-    '''GET DELETED MESSAGES BASED ON PAGE PAGINATED'''
-    try:
-        user = request.user
-        user_profile = Profile.objects.get(user=user)
-        deleted_messages = Message.objects.filter(
-                Q(recipient=user_profile, is_deleted_by_recipient=True) |
-                Q(sender = user_profile, is_deleted_by_sender = True,)
-        ).exclude(
-            Q(messagedeleted__deleted_at__isnull=False)
-        )
-
-        total_deleted_message = deleted_messages.count()
-
-        # PAGINATOR
-        paginator = MessagesResultsSetPagination()
-        result_page = paginator.paginate_queryset(deleted_messages, request)
-        serializer = MessageSerializer(result_page, many=True)
-
-        context_page = {
-            "data": serializer.data,
-            "total_deleted_message": total_deleted_message
-        }
-
-        return Response(context_page, status=status.HTTP_200_OK)
-    except Exception as e:
-        serializer = MessageSerializer(deleted_messages, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
-    
-
 @api_view(["GET"])
 def get_location(request):
     location = Location.objects.all()
@@ -931,7 +621,147 @@ def save_location(request):
         return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
-
+@api_view(["GET"])
+def search_bar_data(request):
+    data = {}
+    skills = Skills.objects.all()
+    skills_serializer = SkillsSerializer(skills, many=True)
+    skill_data = [data["skill_name"] for data in skills_serializer.data]
     
+    emp_type = EmploymentType.objects.all()
+    emp_type_serializer = EmploymentTypeSerializer(emp_type, many=True)
+    emp_type_data = [data["type"] for data in emp_type_serializer.data]
+
+    location = Location.objects.all()
+    location_serializer = LocationSerializer(location, many=True)
+    location_data = [data["location"] for data in location_serializer.data]
+    
+    data["skills"] = skill_data
+    data["emp_type"] = emp_type_data
+    data["location"] = location_data
+
+    return Response(data, status=status.HTTP_200_OK)
+
+
+@api_view(["POST"])
+def search_result(request):
+    data = request.data
+    print(data)
+    user_profile = Profile.objects.filter(
+        Q(userskilllevel__skills__skill_name__icontains=data) |
+        Q(useremploymenttype__employment_type__type__icontains=data)|
+        Q(userlocation__location__location__icontains=data)
+    ).distinct()
+    
+    paginator = UserListResultsSetPagination()
+    result_page = paginator.paginate_queryset(user_profile, request)
+    serializer = ProfileSerializer(result_page, many=True)
+    context = {
+        "data": serializer.data,
+        "total_user": len(user_profile)
+    }
+
+    return Response(context, status=status.HTTP_200_OK)
+
+def min_max_year_counter(min, max):
+    years_min = min * DAYS_IN_YEAR
+    years_max = max * DAYS_IN_YEAR
+    return [years_min, years_max]
+
+@api_view(["GET"])
+def advance_search_result(request):
+    try:
+        min_rate = 0
+        final_result = []
+
+        # GET SKILLS DATA FROM CLIENT
+        skills = set(request.GET.get("skill").split(","))
+        skills_condition = "" if "" in skills else "HAVING COUNT(b2.skill_name) = %s"
+        # IF NO SKILLS DATA FROM CLIENT, RETRIEVE ALL SKILLS LISTED IN DATABASE
+        if "" in skills:
+            all_skills = Skills.objects.all()
+            skills = set(skill.skill_name for skill in all_skills)
+
+        # GET LOCATION DATA FROM CLIENT
+        location = set(request.GET.get("location").split(","))
+        # IF NO LOCATION DATA FROM CLIENT, RETRIEVE ALL SKILLS LISTED IN DATABASE      
+        if "" in location:
+            all_location = Location.objects.all()
+            location = set(location.location for location in all_location)
+
+        # GET RATE DATA FROM CLIENT
+        rate = set(request.GET.get("rate", ""))
+        # IF NO RATE DATA FROM CLIENT, RETRIEVE ALL PROFILE WITH RATE GREATER OR EQUAL THAN 1
+        if not rate:
+            min_rate = 1
+        else:
+            # CLEAN RATE CAPTURED FROM THE CLIENT
+            new_rate = {i for i in rate if i != "," }
+            min_rate = min(new_rate)
+
+        raw_query = f"""
+            WITH user_profile as
+                (SELECT * FROM userapi_useraccount WHERE user_type="personal"),
+                user_profile_rate as
+                    (SELECT ua1.* FROM user_profile p1
+                    INNER JOIN userapi_profile ua1 ON p1.email=ua1.email
+                    WHERE ua1.rate_ratio >= %s),
+                user_profile_skill as
+                    (SELECT a1.id as user_id FROM user_profile_rate a1
+                    INNER JOIN userapi_userskilllevel b1 ON a1.id=b1.user_id
+                    INNER JOIN userapi_skills b2 ON b2.id=b1.skills_id
+                    WHERE b2.skill_name IN %s
+                    GROUP BY a1.id
+                    {skills_condition}),
+                user_location as
+                    (SELECT a2.user_id, b4.location FROM user_profile_skill a2
+                    INNER JOIN userapi_userlocation b3 ON a2.user_id=b3.user_id
+                    INNER JOIN userapi_location b4 ON b3.location_id=b4.id
+                    WHERE b4.location IN %s)
+                    
+                    SELECT b5.* FROM user_location a3
+                    INNER JOIN userapi_profile b5 ON a3.user_id=b5.id;
+            """
+        if skills_condition != "":
+            user_profiles = Profile.objects.raw(raw_query, [min_rate, list(skills), len(skills), list(location)])
+        else:
+            user_profiles = Profile.objects.raw(raw_query, [min_rate, list(skills), list(location)])
+
+
+        experience = request.GET.get("experience", "")
+        if experience != "[object Object]" and experience != "undefined":
+
+            if experience == "1 - 2 years":
+                years_min, years_max = min_max_year_counter(1, 2)
+            elif experience == "2 - 4 years":
+                years_min, years_max = min_max_year_counter(2, 4)
+            elif experience == "4 - 6 years":
+                years_min, years_max = min_max_year_counter(4, 6)
+            elif experience == "6 - 8 years":
+                years_min, years_max = min_max_year_counter(6, 8)
+            elif experience == "8 - 10 years":
+                years_min, years_max = min_max_year_counter(8, 10)
+            elif experience == "> 10 years":
+                years_min, years_max = min_max_year_counter(10, 100)
+            serializer = ProfileSerializer(user_profiles, many=True)
+
+            for data in serializer.data:
+                total_exp = float(data["experiences"]["total_exp"])
+                if years_min <= total_exp <= years_max:  
+                    final_result.append(data)
+        else:
+            final_result = ProfileSerializer(user_profiles, many=True).data
+
+        paginator = UserListResultsSetPagination()
+        result_page = paginator.paginate_queryset(final_result, request)
+        
+        context = {
+            "data": result_page,
+            "total_user": len(final_result)
+        }
+        return Response(context, status=status.HTTP_200_OK)
+    except Exception as e:
+        return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 
 

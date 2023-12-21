@@ -46,6 +46,8 @@ INSTALLED_APPS = [
 
     'userApi.apps.UserapiConfig',
     'jobApi.apps.JobapiConfig',
+    'messagesApi.apps.MessagesapiConfig',
+    
 
 
     'rest_framework_simplejwt',
@@ -59,6 +61,11 @@ INSTALLED_APPS = [
     'ckeditor',
 
     # "userApi"
+]
+
+AUTHENTICATION_BACKENDS = [
+    'django.contrib.auth.backends.ModelBackend',
+    # other backends...
 ]
 
 MIDDLEWARE = [
@@ -172,8 +179,12 @@ WSGI_APPLICATION = 'HiringRemoteWorker.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'ENGINE': 'django.db.backends.mysql',
+        'NAME': 'hrwdb',
+        'USER': 'root',
+        'PASSWORD': 'Bdba7649180292',
+        'HOST':'localhost',
+        'PORT':'3306',
     }
 }
 

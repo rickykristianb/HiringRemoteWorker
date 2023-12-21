@@ -10,12 +10,14 @@ User = settings.AUTH_USER_MODEL    # add to the relation of the user
 
 # Setting User Custom Model
 class UserAccountManager(BaseUserManager):
-    def create_user(self, email, name, username, user_type, password=None, **kwargs):
+    def create_user(self, email, name, user_type, username, password=None, **kwargs):
         if not email:
             raise ValueError("Users must have an email address")
         
         email = self.normalize_email(email)
-        user = self.model(email=email, name=name, username=username, user_type=user_type)
+        user = self.model(email=email, name=name)
+        user.username=username
+        user.user_type=user_type
         user.set_password(password)
         user.is_active = True
         user.save()
@@ -53,7 +55,7 @@ class Profile(models.Model):
     id = models.UUIDField(default=uuid.uuid4, unique=True, primary_key=True, editable=False)
     user = models.OneToOneField(User, on_delete=models.CASCADE, null=True, blank=True)
     name = models.CharField(max_length=255, null=False, blank=False)
-    username = models.CharField(max_length=255, unique=True, null=True, blank=False)
+    username = models.CharField(max_length=255, unique=True, null=True, blank=True)
     email = models.EmailField(max_length=255, null=True, blank=True, unique=True)
     phone_number = models.CharField(max_length=14, unique=True, null=True, blank=True)
     short_intro = models.CharField(max_length=255, null=True, blank=True)
@@ -65,7 +67,7 @@ class Profile(models.Model):
     rate_ratio = models.FloatField(default=0, null=True, blank=True)
 
     def __str__(self) -> str:
-        return f"{self.email}, ID: {self.id}"
+        return f"{self.email}"
     
     @property
     def get_profile_picture(self):
@@ -223,33 +225,3 @@ class Portfolio(models.Model):
     
     class Meta:
         unique_together = ["user", "portfolio_name"]
-
-class Message(models.Model):
-    id = models.UUIDField(default=uuid.uuid4, primary_key=True, editable=False)
-    sender = models.ForeignKey(Profile, on_delete=models.SET_NULL, null=True, blank=True)
-    recipient = models.ForeignKey(Profile, on_delete=models.SET_NULL, null=True, blank=True, related_name="messages")
-    name = models.CharField(max_length=200, null=True, blank=True)
-    email = models.EmailField(max_length=200, null=True, blank=True)
-    subject = models.CharField(max_length=200, null=True, blank=True)
-    body = models.TextField()
-    prev_reply_message = models.TextField(null=True, blank=True)
-    is_read = models.BooleanField(default=False, null=True)
-    is_deleted_by_sender = models.BooleanField(default=False, null=True)
-    is_deleted_by_recipient = models.BooleanField(default=False, null=True)
-    status = models.CharField(max_length=20, null=False, default="active")
-    date_read = models.DateTimeField(auto_now_add=False, null=True, blank=True)
-    created = models.DateTimeField(auto_now_add=True)
-
-    def __str__(self) -> str:
-        return (f"from: {str(self.sender)}, to: {str(self.recipient)}, subject: {self.subject}, is_read: {self.is_read}, is_deleted by recipient: {self.is_deleted_by_recipient}, is_deleted by sender: {self.is_deleted_by_sender}")
-    
-    class Meta:
-        ordering = ["is_read", "-created"]
-
-class MessageDeleted(models.Model):
-    id = models.UUIDField(default=uuid.uuid4, primary_key=True, editable=False)
-    message = models.OneToOneField(Message, on_delete=models.SET_NULL, null=True, blank=True)
-    deleted_at = models.DateTimeField(auto_now_add=True)
-
-    def __str__(self) -> str:
-        return str(self.message)

@@ -6,4 +6,4 @@ admin.site.register([
     Profile, Language, Skills, SkillLevel, UserSkillLevel, ExpectedSalary,
     UserRate, Education, EmploymentType, UserEmploymentType,
     Experience, Networking, Portfolio,
-    Message, MessageDeleted, UserAccount, Location, UserLocation])
+    UserAccount, Location, UserLocation])

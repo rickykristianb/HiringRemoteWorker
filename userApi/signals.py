@@ -31,7 +31,6 @@ def save_user(sender, instance, created, **kwargs):
         user.email = profile.email
         user.save()
 
-
 def save_user_rating(sender, instance, created, **kwargs):
     user_rate = instance
     profile = user_rate.to_user
@@ -67,6 +66,10 @@ def count_total_exp_created(sender, instance, created, **kwargs):
         print("apa nih",exp_days)
         experience.total_exp = exp_days
         experience.save()
+
+# def count_total_experience(sender, instance, created, **kwargs):
+#     experience = instance
+
 
 
 post_save.connect(save_user_rating, sender=UserRate)

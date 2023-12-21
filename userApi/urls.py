@@ -13,6 +13,7 @@ urlpatterns = [
     path('token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     # USER
     path('get_user/', views.get_user, name='get_user'),
+
     # PROFILE
     path('profile/<str:id>', views.get_user_profile, name='get_user_profile'),
     path('get_all_candidate_profile/', views.get_all_candidate_profile, name='get_all_candidate_profile'),
@@ -51,26 +52,13 @@ urlpatterns = [
     #RATE
     path('add_rate/', views.add_rate, name='add_rate'),
     path('save_rate/', views.save_rate, name='save_rate'),
-    # MESSAGES
-    path('send_email/', views.send_email, name='send_email'),
-    path('reply_email/', views.send_reply_message, name='send_reply_message'),
-    path('send_message/', views.send_message, name='send_message'),
-    path('get_message/', views.get_message, name='get_message'),
-    path('read_message/<str:id>/', views.on_read_message, name='on_read_message'),
-    path('get_sent_messages/', views.get_sent_messages, name='get_sent_messages'),
-    path('get_deleted_messages/', views.get_deleted_messages, name='get_deleted_messages'),
-    path('delete_message/<str:id>/', views.delete_message, name='delete_message'),
-    path('delete_message_forever/<str:id>/', views.delete_message_forever, name='delete_message_forever'),
-    path('delete_sent_message/<str:id>/', views.delete_sent_message, name='delete_sent_message'),
-    path('total_inbox_message/', views.get_total_inbox_message, name='get_total_inbox_message'),
-    path('get_inbox_pagination/', views.get_inbox_pagination, name='get_inbox_pagination'),
-    path('count_unread_messages/', views.count_unread_messages, name='count_unread_messages'),
-    path('get_sent_message_pagination/', views.get_sent_message_pagination, name='get_sent_message_pagination'),
-    path('get_deleted_message_pagination/', views.get_deleted_message_pagination, name='get_deleted_message_pagination'),
     # LOCATION
     path('get_location/', views.get_location, name='get_location'),
     path('save_location/', views.save_location, name='save_location'),
-
+    # SEARCH
+    path('search_bar_data/', views.search_bar_data, name='search_bar_data'),
+    path('search_result/', views.search_result, name='search_result'),
+    path('advance_search_result/', views.advance_search_result, name='advance_search_result'),
     # Custom url for creating user, not using regular api url /auth/users to create new
     path('auth/create_user/', CustomUserViewSet.as_view({"post": "create", "get": "list"}), name="user-register")
 ]
