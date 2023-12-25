@@ -112,6 +112,12 @@ class UserLocationSerializer(serializers.ModelSerializer):
 
     location = LocationSerializer()
 
+class UserAccountSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = UserAccount
+        fields = "__all__"
+
 class ProfileSerializer(serializers.ModelSerializer):
 
     class Meta:
@@ -128,6 +134,7 @@ class ProfileSerializer(serializers.ModelSerializer):
     userrate = serializers.SerializerMethodField()
     useremploymenttype = serializers.SerializerMethodField()
     userlocation = UserLocationSerializer()
+    usertype = serializers.SerializerMethodField()
 
 
     def get_skills(self, obj):
@@ -187,6 +194,9 @@ class ProfileSerializer(serializers.ModelSerializer):
             representation['profile_picture'] = self.context['request'].build_absolute_uri(instance.profile_picture.url)
         return representation
 
+    def get_usertype(self, obj):
+        user = UserAccount.objects.get(email=obj)
+        return user.user_type
     
     
 

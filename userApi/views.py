@@ -23,6 +23,7 @@ from django.db import connection
 from CaptureData.external_api import LocationSearch
 from functools import reduce
 import operator
+import pprint
 
 import json
 from datetime import datetime
@@ -646,11 +647,17 @@ def search_bar_data(request):
 @api_view(["POST"])
 def search_result(request):
     data = request.data
-    print(data)
-    user_profile = Profile.objects.filter(
-        Q(userskilllevel__skills__skill_name__icontains=data) |
+    user = UserAccount.objects.filter(user_type="personal")
+    user_profile = Profile.objects.filter( 
+        Q(user__in=user, 
+            userskilllevel__isnull=False, 
+            userlocation__isnull=False, 
+            expectedsalary__isnull=False, 
+            useremploymenttype__isnull=False) &
+        (Q(userskilllevel__skills__skill_name__icontains=data) |
         Q(useremploymenttype__employment_type__type__icontains=data)|
-        Q(userlocation__location__location__icontains=data)
+        Q(userlocation__location__location__icontains=data)) &
+        Q(short_intro__isnull=False)
     ).distinct()
     
     paginator = UserListResultsSetPagination()
@@ -705,7 +712,8 @@ def advance_search_result(request):
                 user_profile_rate as
                     (SELECT ua1.* FROM user_profile p1
                     INNER JOIN userapi_profile ua1 ON p1.email=ua1.email
-                    WHERE ua1.rate_ratio >= %s),
+                    WHERE ua1.rate_ratio >= %s
+                    AND short_intro IS NOT NULL),
                 user_profile_skill as
                     (SELECT a1.id as user_id FROM user_profile_rate a1
                     INNER JOIN userapi_userskilllevel b1 ON a1.id=b1.user_id
@@ -717,10 +725,12 @@ def advance_search_result(request):
                     (SELECT a2.user_id, b4.location FROM user_profile_skill a2
                     INNER JOIN userapi_userlocation b3 ON a2.user_id=b3.user_id
                     INNER JOIN userapi_location b4 ON b3.location_id=b4.id
-                    WHERE b4.location IN %s)
+                    WHERE b4.location IN %s
+                    AND b4.location IS NOT NULL)
                     
                     SELECT b5.* FROM user_location a3
-                    INNER JOIN userapi_profile b5 ON a3.user_id=b5.id;
+                    INNER JOIN userapi_profile b5 ON a3.user_id=b5.id
+                    ;
             """
         if skills_condition != "":
             user_profiles = Profile.objects.raw(raw_query, [min_rate, list(skills), len(skills), list(location)])
@@ -750,11 +760,13 @@ def advance_search_result(request):
                 if years_min <= total_exp <= years_max:  
                     final_result.append(data)
         else:
-            final_result = ProfileSerializer(user_profiles, many=True).data
+            result = ProfileSerializer(user_profiles, many=True).data
+            for data in result:
+                if data["useremploymenttype"] != []:
+                    final_result.append(data)
 
         paginator = UserListResultsSetPagination()
         result_page = paginator.paginate_queryset(final_result, request)
-        
         context = {
             "data": result_page,
             "total_user": len(final_result)
