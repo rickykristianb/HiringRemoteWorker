@@ -22,8 +22,8 @@ from django.core.paginator import Paginator
 from django.db import connection
 from CaptureData.external_api import LocationSearch
 from functools import reduce
-import operator
-import pprint
+# DB ERROR
+from django.db import DataError, IntegrityError
 
 import json
 from datetime import datetime
@@ -149,6 +149,17 @@ def get_user_profile(request, id):
     except Exception as e:
         print(str(e))
 
+@api_view(["GET"])
+@permission_classes({IsAuthenticated})
+def get_login_user_type(request):
+    try:
+        user = request.user
+        profile = Profile.objects.get(user=user)
+        serializer = ProfileSerializer(profile, many=False)
+        return Response(serializer.data["usertype"], status=status.HTTP_200_OK)
+    except Exception as e:
+        return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
@@ -221,8 +232,19 @@ def save_profile(request):
             user_profile.short_intro = data["shortIntro"]
             user_profile.bio = data["bio"]
             user_profile.phone_number = data["phoneNumber"]
-            user_profile.save()
-            return Response({"success": "Profile saved"},status=status.HTTP_201_CREATED)
+            try:
+                user_profile.save()
+                return Response({"success": "Profile saved"}, status=status.HTTP_201_CREATED)
+            except Exception as e:
+                error_info = {
+                    'error_type': type(e).__name__,
+                    'error_message': str(e),
+                }
+                json_error_info = json.dumps(error_info["error_message"])
+                if data["phoneNumber"] in json_error_info:
+                    return Response({"error": f"{data["phoneNumber"]} already in used by another user, try another number"}, status=status.HTTP_400_BAD_REQUEST)
+                return Response({"error": json_error_info}, status=status.HTTP_400_BAD_REQUEST)
+                
     except Exception as e:
         return Response({"error": e}, status=status.HTTP_404_NOT_FOUND)
     
@@ -599,7 +621,8 @@ def save_rate(request):
 def get_location(request):
     location = Location.objects.all()
     serializer = LocationSerializer(location, many=True)
-    return Response(serializer.data)
+    sorted_location = sorted(serializer.data, key=lambda data: data['location'])
+    return Response(sorted_location)
 
 
 @api_view(["PATCH"])
@@ -776,4 +799,34 @@ def advance_search_result(request):
         return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
-
+@api_view(["PATCH"])
+@permission_classes([IsAuthenticated])
+def save_company_profile(request):
+    import time
+    # time.sleep(5)
+    try:
+        data = request.data
+        user = request.user
+        user_profile = Profile.objects.get(user=user)
+        user_location = UserLocation.objects.get_or_create(user=user_profile)
+        user_profile.name = data.get("name", "")
+        user_profile.email = data.get("email", "")
+        user_profile.phone_number = data.get("phoneNumber", "")
+        user_profile.address = data.get("address", "")
+        user_profile.bio = data.get("bio", "")
+        print(data.get("location"))
+        location_id = get_object_or_404(Location, id=data.get("location", ""))
+        
+        user_location[0].location = location_id
+        user_location[0].save()
+        user_profile.save()
+        return Response({"success": "Company profile saved"}, status=status.HTTP_200_OK)
+    except DataError as e:
+        if e.args[0] == 1406:
+            return Response({"error": "Phone Number is too long"}, status=status.HTTP_400_BAD_REQUEST)
+    except IntegrityError as e:
+        if e.args[0] == 1062:
+            return Response({"error": "Phone Number is already in used, try another"}, status=status.HTTP_400_BAD_REQUEST)
+    except Exception as e:
+        print(str(e))
+        return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
