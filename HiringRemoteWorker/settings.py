@@ -45,7 +45,7 @@ INSTALLED_APPS = [
 
 
     'userApi.apps.UserapiConfig',
-    'jobApi.apps.JobapiConfig',
+    'jobsApi.apps.JobsapiConfig',
     'messagesApi.apps.MessagesapiConfig',
     
 

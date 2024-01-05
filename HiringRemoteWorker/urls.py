@@ -27,6 +27,7 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/user/', include('userApi.urls')),
     path('api/message/', include("messagesApi.urls")),
+    path('api/job/', include("jobsApi.urls")),
 
     # JWT authentication
     re_path(r'^auth/', include('djoser.urls')),

@@ -17,7 +17,6 @@ from django.core.mail import send_mail
 from django.template.loader import render_to_string
 
 from django.contrib.auth.models import User
-from django.contrib.auth import authenticate, login, logout
 from django.core.paginator import Paginator
 from django.db import connection
 from CaptureData.external_api import LocationSearch
@@ -147,7 +146,8 @@ def get_user_profile(request, id):
         serializer = ProfileSerializer(user, many=False, context={'request': request})
         return Response(serializer.data, status=status.HTTP_200_OK)
     except Exception as e:
-        print(str(e))
+        return Response({"error": str(e)}, status=status.HTTP_404_NOT_FOUND)
+
 
 @api_view(["GET"])
 @permission_classes({IsAuthenticated})
@@ -436,22 +436,6 @@ def save_experience(request, id):
     except Exception as e:
         return Response({"error": str(e)}, status=status.HTTP_404_NOT_FOUND)
 
-
-# @api_view(["GET"])
-# @permission_classes([IsAuthenticated])
-# def get_experience(request):
-#     print("MASKKK")
-#     try:
-#         user = request.user
-#         user_profile = Profile.objects.get(user=user)
-#         experience = Experience.objects.filter(user=user_profile).order_by("-end_date")
-#         print(experience)
-#         serializer = ExperienceSerializer(experience, many=True)
-#         return Response(serializer.data, status=status.HTTP_200_OK)
-#     except Exception as e:
-#         return Response({"error": "User not found"}, status=status.HTTP_404_NOT_FOUND)
-    
-
 @api_view(["DELETE"])
 @permission_classes([IsAuthenticated])
 def delete_experience(request, id):
@@ -619,10 +603,13 @@ def save_rate(request):
 
 @api_view(["GET"])
 def get_location(request):
-    location = Location.objects.all()
-    serializer = LocationSerializer(location, many=True)
-    sorted_location = sorted(serializer.data, key=lambda data: data['location'])
-    return Response(sorted_location)
+    try:
+        location = Location.objects.all()
+        serializer = LocationSerializer(location, many=True)
+        sorted_location = sorted(serializer.data, key=lambda data: data['location'])
+        return Response(sorted_location)
+    except Exception as e:
+        return Response({"error": str(e)}, status=status.HTTP_404_NOT_FOUND)
 
 
 @api_view(["PATCH"])
@@ -802,8 +789,6 @@ def advance_search_result(request):
 @api_view(["PATCH"])
 @permission_classes([IsAuthenticated])
 def save_company_profile(request):
-    import time
-    # time.sleep(5)
     try:
         data = request.data
         user = request.user
@@ -814,9 +799,7 @@ def save_company_profile(request):
         user_profile.phone_number = data.get("phoneNumber", "")
         user_profile.address = data.get("address", "")
         user_profile.bio = data.get("bio", "")
-        print(data.get("location"))
         location_id = get_object_or_404(Location, id=data.get("location", ""))
-        
         user_location[0].location = location_id
         user_location[0].save()
         user_profile.save()
